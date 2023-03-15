@@ -1,0 +1,133 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+import statsmodels.api as sm
+# Load and prepare your dataset
+data = pd.read_csv('/123bazaCSV.csv',sep=';')
+data.drop('O2', axis=1, inplace=True)
+data.drop('RTg', axis=1, inplace=True)
+X = data.drop('umrli', axis=1)
+y = data['umrli']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Add a constant to the independent variables for statsmodels
+X_train_sm = sm.add_constant(X_train)
+
+# Fit the logistic regression model using statsmodels
+logit_model = sm.Logit(y_train, X_train_sm)
+result = logit_model.fit()
+
+# Exponentiate the coefficients to get the odds ratios
+odds_ratios = np.exp(result.params)
+
+# Display odds ratios with feature names
+print("Odds Ratios:")
+for feature, odds_ratio in zip(['Intercept'] + list(X.columns), odds_ratios):
+    print(f"{feature}: {odds_ratio}")
+
+# Calculate 95% confidence intervals for odds ratios
+conf_int = result.conf_int(alpha=0.05)
+conf_int = np.exp(conf_int)
+
+# Calculate relative risks and their confidence intervals
+prevalence = y_train.mean()
+
+# Function to calculate relative risks and their confidence intervals
+def calculate_relative_risk(odds_ratio, ci_lower, ci_upper, prevalence):
+    rr = odds_ratio * (1 - prevalence) / (1 + (odds_ratio - 1) * (1 - prevalence))
+    rr_ci_lower = ci_lower * (1 - prevalence) / (1 + (ci_lower - 1) * (1 - prevalence))
+    rr_ci_upper = ci_upper * (1 - prevalence) / (1 + (ci_upper - 1) * (1 - prevalence))
+    return rr, rr_ci_lower, rr_ci_upper
+# Display odds ratios, confidence intervals, relative risks, and their confidence intervals for each feature
+print("Feature | Odds Ratio | Odds Ratio CI (Lower, Upper) | Relative Risk | Relative Risk CI (Lower, Upper)")
+for feature, odds_ratio, (ci_lower, ci_upper) in zip(['Intercept'] + list(X.columns), odds_ratios, conf_int.values):
+    rr, rr_ci_lower, rr_ci_upper = calculate_relative_risk(odds_ratio, ci_lower, ci_upper, prevalence)
+    print(f"{feature}: {odds_ratio:.4f} | ({ci_lower:.4f}, {ci_upper:.4f}) | {rr:.4f} | ({rr_ci_lower:.4f}, {rr_ci_upper:.4f})")
+import matplotlib.pyplot as plt
+
+# Filter out the significant features
+#significant_features = ['pol', 'CRP', 'feritin', 'O2', 'temper.', 'HBI', 'tumor', 'vakcina']
+#significant_odds_ratios = [odds_ratios[feat] for feat in significant_features]
+
+# Create a bar chart
+#
+#This code will generate a bar chart showing the odds ratios for the statistically significant features. The y-axis represents the odds ratio values, and the x-axis shows the feature names. The height of each bar indicates the strength of the association between the feature and the outcome.
+
+
+import matplotlib.pyplot as plt
+
+# Filter out the significant features
+significant_features = ['pol', 'CRP', 'feritin', 'temper.', 'HBI', 'tumor', 'gojaznost', 'vakcina']
+significant_odds_ratios = [2.0807, 1.8347, 0.6001, 0.2353, 16.3605, 2.7481, 2.5883, 0.5605]
+
+# Create a bar chart
+plt.figure(figsize=(12, 6))
+plt.bar(significant_features, significant_odds_ratios)
+plt.xlabel('Features')
+plt.ylabel('Odds Ratio')
+plt.title('Odds Ratios for Statistically Significant Features')
+plt.show()
+
+# Likelihood of the null model
+null_ll = result.llnull
+
+# Likelihood of the fitted model
+model_ll = result.llf
+
+# Calculate McFadden R-squared
+mcFadden_R2 = 1 - (model_ll / null_ll)
+
+print("McFadden R-squared:", mcFadden_R2)
+
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+# Make predictions on the test data
+X_test_sm = sm.add_constant(X_test)
+y_test_pred_prob = result.predict(X_test_sm)
+
+# Set a threshold to classify the predictions as 0 or 1 (e.g., 0.5)
+threshold = 0.5
+y_test_pred = (y_test_pred_prob > threshold).astype(int)
+
+# Calculate precision, recall, and F1-score
+precision = precision_score(y_test, y_test_pred)
+recall = recall_score(y_test, y_test_pred)
+f1 = f1_score(y_test, y_test_pred)
+
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1-score: {f1:.4f}")
+
+dds Ratios:
+Intercept: 0.5823943008159935
+pol: 2.0807240610203275
+CRP: 1.8346984639467994
+D dimer: 1.1543579132249862
+feritin: 0.6001400806719532
+temper.: 0.23534724383683941
+HTA: 1.4329779873307396
+DM /HbA1c/: 0.595002663828219
+HBI: 16.360477626331736
+tumor: 2.7480632573198163
+CHF: 1.1460383828230594
+gojaznost: 2.5882507465142783
+vakcina: 0.5605058667653293
+Feature | Odds Ratio | Odds Ratio CI (Lower, Upper) | Relative Risk | Relative Risk CI (Lower, Upper)
+Intercept: 0.5824 | (0.1948, 1.7411) | 0.3031 | (0.1270, 0.5653)
+pol: 2.0807 | (1.0947, 3.9548) | 0.6085 | (0.4498, 0.7471)
+CRP: 1.8347 | (1.4726, 2.2859) | 0.5781 | (0.5238, 0.6306)
+D dimer: 1.1544 | (0.8603, 1.5489) | 0.4630 | (0.3912, 0.5364)
+feritin: 0.6001 | (0.4231, 0.8512) | 0.3095 | (0.2401, 0.3886)
+temper.: 0.2353 | (0.1152, 0.4807) | 0.1495 | (0.0792, 0.2642)
+HTA: 1.4330 | (0.7043, 2.9155) | 0.5170 | (0.3447, 0.6853)
+DM /HbA1c/: 0.5950 | (0.3055, 1.1588) | 0.3077 | (0.1858, 0.4639)
+HBI: 16.3605 | (3.3429, 80.0693) | 0.9243 | (0.7140, 0.9836)
+tumor: 2.7481 | (0.9637, 7.8363) | 0.6724 | (0.4185, 0.8541)
+CHF: 1.1460 | (0.5719, 2.2966) | 0.4612 | (0.2993, 0.6317)
+gojaznost: 2.5883 | (1.0963, 6.1104) | 0.6591 | (0.4502, 0.8203)
+vakcina: 0.5605 | (0.2951, 1.0645) | 0.2951 | (0.1806, 0.4429)
+
+McFadden R-squared: 0.3033922394006813
+Precision: 0.7647
+Recall: 0.8478
+F1-score: 0.8041
